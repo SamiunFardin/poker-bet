@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Texas Hold'em Visualizer & Digital Banker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .felt-table {
+      background: radial-gradient(circle, #1a5e38 0%, #0d3820 75%, #072213 100%);
+      box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.8), 0 20px 40px rgba(0, 0, 0, 0.6);
+      border: 14px solid #3d2314;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col justify-between select-none">
+
+  <!-- TOP HEADER -->
+  <header class="bg-gray-900/90 border-b border-gray-800 px-6 py-3 flex flex-wrap items-center justify-between gap-4 backdrop-blur">
+    <div class="flex items-center gap-3">
+      <div class="p-2 bg-emerald-600/20 text-emerald-400 rounded-lg border border-emerald-500/30">
+        <i class="fa-solid fa-cards text-xl"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg leading-none tracking-wide text-white">Hold'em Table Assistant</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Digital Banker & Strict Flow Tracker</p>
+      </div>
+    </div>
+
+    <!-- Live Game Stats -->
+    <div class="flex items-center gap-6 bg-gray-950/80 px-5 py-2 rounded-xl border border-gray-800 shadow-inner">
+      <div class="text-center">
+        <span class="text-[10px] uppercase font-bold tracking-wider text-gray-400 block">Stage</span>
+        <span id="stat-stage" class="text-sm font-bold text-emerald-400">PREFLOP</span>
+      </div>
+      <div class="h-6 w-px bg-gray-800"></div>
+      <div class="text-center">
+        <span class="text-[10px] uppercase font-bold tracking-wider text-gray-400 block">Total Pot</span>
+        <span id="stat-pot" class="text-base font-extrabold text-amber-400">$0</span>
+      </div>
+      <div class="h-6 w-px bg-gray-800"></div>
+      <div class="text-center">
+        <span class="text-[10px] uppercase font-bold tracking-wider text-gray-400 block">Current Bet</span>
+        <span id="stat-current-bet" class="text-sm font-bold text-gray-200">$0</span>
+      </div>
+    </div>
+
+    <div class="text-right text-xs text-gray-400">
+      <div><span class="text-gray-500">Dealer:</span> <span id="stat-dealer" class="text-gray-200 font-medium">-</span></div>
+      <div><span class="text-gray-500">SB / BB:</span> <span id="stat-blinds" class="text-gray-200 font-medium">- / -</span></div>
+    </div>
+  </header>
+
+  <!-- NOTIFICATION BANNER -->
+  <div class="bg-emerald-950/80 border-y border-emerald-500/30 px-4 py-2 text-center text-sm font-semibold text-emerald-300 flex items-center justify-center gap-2">
+    <i class="fa-solid fa-bullhorn text-emerald-400"></i>
+    <span id="dealer-instruction">DEALER: Deal 2 hole cards to each player face-down.</span>
+  </div>
+
+  <!-- MAIN CANVAS AREA -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col gap-4">
+    <div class="relative w-full h-[360px] felt-table rounded-full flex items-center justify-center my-2 shadow-2xl overflow-hidden">
+      <div class="text-center z-10 bg-gray-950/80 px-6 py-3 rounded-2xl border border-emerald-500/30 backdrop-blur-md shadow-2xl">
+        <div class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-0.5">Main Pot</div>
+        <div id="table-pot-display" class="text-3xl font-extrabold text-amber-400 tracking-tight">$0</div>
+        <div id="table-stage-display" class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mt-1">Preflop</div>
+      </div>
+      <div id="seats-container" class="absolute inset-0 pointer-events-none"></div>
+    </div>
+
+    <!-- PLAYER LEDGER -->
+    <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-4 shadow-xl">
+      <div class="flex items-center justify-between mb-3 px-1">
+        <h2 class="text-sm font-bold text-gray-300 flex items-center gap-2">
+          <i class="fa-solid fa-users text-emerald-400"></i> Player Breakdown
+        </h2>
+        <span class="text-xs text-gray-500" id="active-players-count">Active Players: 0</span>
+      </div>
+      <div id="players-card-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-56 overflow-y-auto custom-scrollbar pr-1"></div>
+    </div>
+  </main>
+
+  <!-- CONTROL PANEL -->
+  <footer class="bg-gray-900 border-t border-gray-800 p-4 backdrop-blur">
+    <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start bg-gray-950/60 px-4 py-2.5 rounded-xl border border-gray-800">
+        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Current Action:</span>
+        <span id="turn-player-name" class="text-base font-bold text-amber-400">Waiting...</span>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2 w-full lg:w-auto justify-center flex-wrap">
+        <button id="btn-fold" onclick="actionFold()" class="px-5 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white font-bold rounded-xl transition shadow-lg flex items-center gap-2">
+          <i class="fa-solid fa-xmark"></i> Fold
+        </button>
+        <button id="btn-call" onclick="actionCall()" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold rounded-xl transition shadow-lg flex items-center gap-2">
+          <i class="fa-solid fa-check"></i> <span id="btn-call-text">Check</span>
+        </button>
+        <div class="flex items-center bg-gray-800 rounded-xl p-1 border border-gray-700 shadow-lg">
+          <input type="number" id="raise-amount-input" class="w-20 bg-gray-900 text-white font-bold text-center py-1.5 px-2 rounded-lg border border-gray-700 focus:outline-none focus:border-emerald-500 text-sm" placeholder="Amount">
+          <button id="btn-raise" onclick="actionRaise()" class="ml-1 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold rounded-lg transition text-sm flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-up"></i> Raise
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
+        <button onclick="discontinuePot()" class="px-3.5 py-2 bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition shadow flex items-center gap-1.5">
+          <i class="fa-solid fa-ban"></i> Discontinue Pot
+        </button>
+        <div class="flex items-center gap-1 border-l border-gray-800 pl-2 ml-1">
+          <button onclick="openRebuyModal()" title="Add Cash" class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition"><i class="fa-solid fa-dollar-sign text-emerald-400"></i></button>
+          <button onclick="openAddPlayerModal()" title="Add Player" class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition"><i class="fa-solid fa-user-plus text-blue-400"></i></button>
+          <button onclick="openRemovePlayerModal()" title="Remove Player" class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition"><i class="fa-solid fa-user-minus text-red-400"></i></button>
+          <button onclick="openHistoryModal()" title="History Ledger" class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition"><i class="fa-solid fa-clock-history text-purple-400"></i></button>
+          <button onclick="confirmResetSession()" title="Reset Session" class="p-2 bg-red-950 hover:bg-red-900 border border-red-800 text-red-400 rounded-lg text-xs font-semibold transition ml-1"><i class="fa-solid fa-rotate-right"></i></button>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODALS -->
+
+  <!-- INITIAL SETUP -->
+  <div id="modal-setup" class="fixed inset-0 bg-gray-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <div class="text-center mb-6">
+        <h2 class="text-xl font-bold text-white">Texas Hold'em Setup</h2>
+        <p class="text-xs text-gray-400 mt-1">Configure banker rules</p>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Number of Players (2 - 20)</label>
+          <input type="number" id="setup-num-players" min="2" max="20" value="8" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Default Buy-in ($)</label>
+          <input type="number" id="setup-buyin" value="1000" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Small Blind ($)</label>
+            <input type="number" id="setup-sb" value="10" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Big Blind ($)</label>
+            <input type="number" id="setup-bb" value="20" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+      </div>
+      <button onclick="submitSetup()" class="w-full mt-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg">
+        Next: Player Names &rarr;
+      </button>
+    </div>
+  </div>
+
+  <!-- PLAYER NAMES SETUP -->
+  <div id="modal-names" class="fixed inset-0 bg-gray-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="text-center mb-4">
+        <h2 class="text-xl font-bold text-white">Enter Player Names</h2>
+      </div>
+      <div id="names-inputs-container" class="grid grid-cols-2 gap-3 overflow-y-auto custom-scrollbar p-1 flex-1"></div>
+      <button onclick="submitNamesAndStart()" class="w-full mt-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg">
+        Start Game ♠️
+      </button>
+    </div>
+  </div>
+
+  <!-- COMMUNITY CARD REVEAL POPUP -->
+  <div id="modal-card-reveal" class="fixed inset-0 bg-gray-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-emerald-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center">
+      <div class="inline-flex p-3 bg-emerald-500/10 text-emerald-400 rounded-full mb-3 border border-emerald-500/20">
+        <i class="fa-solid fa-layer-group text-3xl"></i>
+      </div>
+      <h3 id="card-reveal-stage-title" class="text-xl font-extrabold text-white mb-2">TIME FOR COMMUNITY CARDS</h3>
+      <p id="card-reveal-instruction" class="text-sm text-gray-200 bg-gray-950 p-4 rounded-xl border border-gray-800 mb-6 font-semibold">
+        Instruction details...
+      </p>
+      <button onclick="confirmCommunityCardsRevealed()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-2">
+        <i class="fa-solid fa-check-double"></i> Confirm Cards Revealed & Unlock Betting
+      </button>
+    </div>
+  </div>
+
+  <!-- SHOWDOWN SETTLEMENT -->
+  <div id="modal-showdown" class="fixed inset-0 bg-gray-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-trophy text-amber-400"></i> Award / Split Pot
+      </h3>
+      <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 text-center mb-4">
+        <span class="text-xs font-semibold text-gray-400 block uppercase">Total Pot</span>
+        <span id="showdown-pot-amount" class="text-3xl font-black text-amber-400">$0</span>
+      </div>
+      <div id="showdown-split-info" class="bg-emerald-950/50 border border-emerald-500/30 text-emerald-300 text-xs font-semibold p-2.5 rounded-lg text-center mb-4">
+        Selected: 0 players
+      </div>
+      <div class="text-xs text-gray-400 font-medium mb-2">Select winner(s):</div>
+      <div id="showdown-players-list" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 mb-6"></div>
+      <button onclick="awardPot()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg">
+        🏆 Confirm Winner & Award Pot
+      </button>
+    </div>
+  </div>
+
+  <!-- WINNER DECLARATION -->
+  <div id="modal-winner-announcement" class="fixed inset-0 bg-gray-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center">
+      <div class="inline-flex p-4 bg-amber-500/10 text-amber-400 rounded-full mb-3 border border-amber-500/20 animate-bounce">
+        <i class="fa-solid fa-trophy text-4xl"></i>
+      </div>
+      <h3 class="text-xs font-bold uppercase tracking-widest text-amber-400 mb-1">Hand Settled</h3>
+      <h2 id="winner-title" class="text-2xl font-extrabold text-white mb-4">Player Wins!</h2>
+      <div id="winner-details-box" class="bg-gray-950 p-4 rounded-xl border border-gray-800 mb-6 text-sm text-gray-300 space-y-1"></div>
+      <button onclick="closeModal('modal-winner-announcement'); promptNextHandOrEnd();" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg">
+        Continue &rarr;
+      </button>
+    </div>
+  </div>
+
+  <!-- NEXT HAND / END GAME PERMISSION -->
+  <div id="modal-hand-permission" class="fixed inset-0 bg-gray-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center">
+      <div class="inline-flex p-3 bg-blue-500/10 text-blue-400 rounded-full mb-3 border border-blue-500/20">
+        <i class="fa-solid fa-shield-halved text-3xl"></i>
+      </div>
+      <h3 class="text-xl font-bold text-white mb-2">Hand Complete</h3>
+      <p class="text-xs text-gray-400 mb-6">Permission required to proceed. Choose an option below:</p>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="closeModal('modal-hand-permission'); startNewHand();" class="py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-play text-xs"></i> Next Hand
+        </button>
+        <button onclick="closeModal('modal-hand-permission'); showFinalCashoutSummary();" class="py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-power-off text-xs"></i> End Game
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FINAL CASHOUT LEDGER FOR SCREENSHOT -->
+  <div id="modal-final-summary" class="fixed inset-0 bg-gray-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+            <i class="fa-solid fa-receipt text-2xl"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-white">Final Cashout & Ledger Record</h2>
+            <p class="text-xs text-gray-400">Complete summary for screenshot / history retention</p>
+          </div>
+        </div>
+        <span class="text-xs font-mono text-gray-500" id="summary-timestamp">--</span>
+      </div>
+
+      <div class="overflow-y-auto custom-scrollbar flex-1 mb-4">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-gray-950 text-gray-400 uppercase tracking-wider sticky top-0">
+            <tr>
+              <th class="p-3 border-b border-gray-800">Player</th>
+              <th class="p-3 border-b border-gray-800">Total Buy-In</th>
+              <th class="p-3 border-b border-gray-800">Final Cash</th>
+              <th class="p-3 border-b border-gray-800">Net Profit / Loss</th>
+            </tr>
+          </thead>
+          <tbody id="final-summary-table-body" class="divide-y divide-gray-800 text-gray-200"></tbody>
+        </table>
+      </div>
+
+      <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 text-xs text-gray-400 flex justify-between items-center">
+        <span>📷 Take a screenshot now to save complete game records.</span>
+        <button onclick="startNewSession();" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition">
+          Start New Game Session
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UTILITY MODALS -->
+  <div id="modal-rebuy" class="fixed inset-0 bg-gray-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white">Add Cash Stack</h3>
+        <button onclick="closeModal('modal-rebuy')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Select Player</label>
+          <select id="rebuy-player-select" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Top-Up Amount ($)</label>
+          <input type="number" id="rebuy-amount-input" value="500" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+      <button onclick="submitRebuy()" class="w-full mt-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg">Confirm Cash Add</button>
+    </div>
+  </div>
+
+  <div id="modal-add-player" class="fixed inset-0 bg-gray-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white">Add New Player</h3>
+        <button onclick="closeModal('modal-add-player')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Player Name</label>
+          <input type="text" id="add-player-name" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Initial Buy-in ($)</label>
+          <input type="number" id="add-player-buyin" value="1000" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+      <button onclick="submitAddPlayer()" class="w-full mt-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg">Add To Table</button>
+    </div>
+  </div>
+
+  <div id="modal-remove-player" class="fixed inset-0 bg-gray-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white">Cash Out Player</h3>
+        <button onclick="closeModal('modal-remove-player')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">Select Player Leaving</label>
+        <select id="remove-player-select" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-emerald-500 mb-4"></select>
+      </div>
+      <button onclick="submitRemovePlayer()" class="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition shadow-lg">Cash Out & Remove</button>
+    </div>
+  </div>
+
+  <div id="modal-history" class="fixed inset-0 bg-gray-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-clock-history text-purple-400"></i> Cashout Records History
+        </h3>
+        <button onclick="closeModal('modal-history')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="overflow-x-auto max-h-64 custom-scrollbar">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-gray-950 text-gray-400 uppercase tracking-wider sticky top-0">
+            <tr>
+              <th class="p-2.5">Time</th>
+              <th class="p-2.5">Player</th>
+              <th class="p-2.5">Buy-in</th>
+              <th class="p-2.5">Cashout</th>
+              <th class="p-2.5">Net Profit</th>
+              <th class="p-2.5">Reason</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body" class="divide-y divide-gray-800 text-gray-300"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT STATE ENGINE -->
+  <script>
+    class Player {
+      constructor(name, chips, totalBuyin = null, currentBet = 0, hasActed = false, inHand = true, isAllIn = false, isActive = true, inactiveHandsCount = 0) {
+        this.name = name;
+        this.chips = chips;
+        this.totalBuyin = totalBuyin !== null ? totalBuyin : chips;
+        this.currentBet = currentBet;
+        this.hasActed = hasActed;
+        this.inHand = inHand;
+        this.isAllIn = isAllIn;
+        this.isActive = isActive;
+        this.inactiveHandsCount = inactiveHandsCount;
+      }
+      get netProfit() { return this.chips - this.totalBuyin; }
+    }
+
+    let players = [];
+    let historyLedger = [];
+    let dealerIdx = 0;
+    let currentTurnIdx = 0;
+    let pot = 0;
+    let currentBet = 0;
+    let smallBlind = 10;
+    let bigBlind = 20;
+    let defaultBuyin = 1000;
+    let stage = "PREFLOP";
+
+    let isWaitingForCardReveal = false;
+    let pendingNextStage = null;
+
+    const STORAGE_KEY = "poker_assistant_session_v1";
+
+    // SAVE & LOAD LOCALSTORAGE
+    function saveGameState() {
+      const state = {
+        players,
+        historyLedger,
+        dealerIdx,
+        currentTurnIdx,
+        pot,
+        currentBet,
+        smallBlind,
+        bigBlind,
+        defaultBuyin,
+        stage,
+        isWaitingForCardReveal,
+        pendingNextStage
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function loadGameState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return false;
+
+      try {
+        const data = JSON.parse(saved);
+        players = data.players.map(p => new Player(
+          p.name, p.chips, p.totalBuyin, p.currentBet, p.hasActed, p.inHand, p.isAllIn, p.isActive, p.inactiveHandsCount
+        ));
+        historyLedger = data.historyLedger || [];
+        dealerIdx = data.dealerIdx || 0;
+        currentTurnIdx = data.currentTurnIdx || 0;
+        pot = data.pot || 0;
+        currentBet = data.currentBet || 0;
+        smallBlind = data.smallBlind || 10;
+        bigBlind = data.bigBlind || 20;
+        defaultBuyin = data.defaultBuyin || 1000;
+        stage = data.stage || "PREFLOP";
+        isWaitingForCardReveal = data.isWaitingForCardReveal || false;
+        pendingNextStage = data.pendingNextStage || null;
+
+        closeModal('modal-setup');
+        closeModal('modal-names');
+
+        if (isWaitingForCardReveal && pendingNextStage) {
+          const prompts = {
+            "FLOP": { title: "DEAL FLOP CARDS", text: "DEALER: Burn 1 card face-down, then reveal 3 FLOP community cards face-up." },
+            "TURN": { title: "DEAL TURN CARD", text: "DEALER: Burn 1 card face-down, then reveal 1 TURN community card face-up (4th card)." },
+            "RIVER": { title: "DEAL RIVER CARD", text: "DEALER: Burn 1 card face-down, then reveal 1 RIVER community card face-up (5th card)." }
+          };
+          if (prompts[pendingNextStage]) {
+            document.getElementById('card-reveal-stage-title').innerText = prompts[pendingNextStage].title;
+            document.getElementById('card-reveal-instruction').innerText = prompts[pendingNextStage].text;
+            openModal('modal-card-reveal');
+          }
+        }
+
+        renderUI();
+        return true;
+      } catch (e) {
+        console.error("Failed to parse saved game state:", e);
+        clearGameState();
+        return false;
+      }
+    }
+
+    function clearGameState() {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    function startNewSession() {
+      clearGameState();
+      window.location.reload();
+    }
+
+    function confirmResetSession() {
+      if (confirm("Are you sure you want to start a NEW session? All previous session data will be permanently deleted!")) {
+        startNewSession();
+      }
+    }
+
+    // INITIALIZATION & SETUP
+    window.addEventListener('DOMContentLoaded', () => {
+      const restored = loadGameState();
+      if (!restored) {
+        openModal('modal-setup');
+      }
+    });
+
+    function submitSetup() {
+      const numPlayers = parseInt(document.getElementById('setup-num-players').value);
+      defaultBuyin = parseInt(document.getElementById('setup-buyin').value);
+      smallBlind = parseInt(document.getElementById('setup-sb').value);
+      bigBlind = parseInt(document.getElementById('setup-bb').value);
+
+      if (isNaN(numPlayers) || numPlayers < 2 || numPlayers > 20) {
+        alert("Please enter between 2 and 20 players.");
+        return;
+      }
+
+      const container = document.getElementById('names-inputs-container');
+      container.innerHTML = '';
+      for (let i = 0; i < numPlayers; i++) {
+        container.innerHTML += `
+          <div>
+            <label class="block text-[11px] font-semibold text-gray-400 mb-1">Player ${i + 1}</label>
+            <input type="text" id="player-name-input-${i}" value="Player ${i + 1}" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white font-medium text-sm focus:outline-none focus:border-emerald-500">
+          </div>
+        `;
+      }
+      closeModal('modal-setup');
+      openModal('modal-names');
+    }
+
+    function submitNamesAndStart() {
+      // Clear previous sessions when a new game session starts
+      clearGameState();
+
+      const inputs = document.querySelectorAll('#names-inputs-container input');
+      players = Array.from(inputs).map((input, idx) => new Player(input.value.trim() || `Player ${idx + 1}`, defaultBuyin));
+      dealerIdx = 0;
+      closeModal('modal-names');
+      startNewHand();
+    }
+
+    function startNewHand() {
+      let kickedPlayers = [];
+      players.forEach(p => {
+        if (!p.isActive) {
+          p.inactiveHandsCount++;
+          if (p.inactiveHandsCount >= 3) kickedPlayers.push(p);
+        } else {
+          p.inactiveHandsCount = 0;
+        }
+      });
+
+      kickedPlayers.forEach(kp => {
+        logPlayerExit(kp, "Auto-Kicked (3 Inactive Hands)");
+        const idx = players.indexOf(kp);
+        if (idx < dealerIdx) dealerIdx--;
+        else if (idx === dealerIdx && players.length > 1) dealerIdx = dealerIdx % (players.length - 1);
+        players.splice(idx, 1);
+        alert(`${kp.name} was auto-kicked after missing 3 consecutive hands!`);
+      });
+
+      if (players.length < 2) {
+        alert("Not enough players left to continue!");
+        return;
+      }
+
+      pot = 0;
+      currentBet = bigBlind;
+      stage = "PREFLOP";
+      isWaitingForCardReveal = false;
+      pendingNextStage = null;
+      dealerIdx = (dealerIdx + 1) % players.length;
+
+      players.forEach(p => {
+        p.inHand = (p.chips > 0 && p.isActive);
+        p.isAllIn = false;
+        p.hasActed = false;
+        p.currentBet = 0;
+      });
+
+      const sbIdx = (dealerIdx + 1) % players.length;
+      const bbIdx = (dealerIdx + 2) % players.length;
+
+      deductBlind(players[sbIdx], smallBlind);
+      deductBlind(players[bbIdx], bigBlind);
+
+      currentTurnIdx = (bbIdx + 1) % players.length;
+      skipInactivePlayers();
+      renderUI();
+      saveGameState();
+    }
+
+    function deductBlind(player, amount) {
+      const posted = Math.min(player.chips, amount);
+      player.chips -= posted;
+      player.currentBet = posted;
+      pot += posted;
+      if (player.chips === 0) player.isAllIn = true;
+    }
+
+    function actionFold() {
+      if (isWaitingForCardReveal) return;
+      const p = players[currentTurnIdx];
+      p.inHand = false;
+      p.hasActed = true;
+      if (!checkHandStatus()) advanceTurn();
+      saveGameState();
+    }
+
+    function actionCall() {
+      if (isWaitingForCardReveal) return;
+      const p = players[currentTurnIdx];
+      const callNeeded = currentBet - p.currentBet;
+      const payable = Math.min(p.chips, callNeeded);
+
+      p.chips -= payable;
+      p.currentBet += payable;
+      pot += payable;
+      p.hasActed = true;
+      if (p.chips === 0) p.isAllIn = true;
+
+      advanceTurn();
+      saveGameState();
+    }
+
+    function actionRaise() {
+      if (isWaitingForCardReveal) return;
+      const p = players[currentTurnIdx];
+      const targetRaise = parseInt(document.getElementById('raise-amount-input').value);
+
+      if (isNaN(targetRaise) || targetRaise <= currentBet) {
+        alert(`Raise total must be greater than current bet of $${currentBet}`);
+        return;
+      }
+
+      const added = targetRaise - p.currentBet;
+      if (added > p.chips) {
+        alert(`${p.name} only has $${p.chips}`);
+        return;
+      }
+
+      p.chips -= added;
+      p.currentBet = targetRaise;
+      pot += added;
+      currentBet = targetRaise;
+
+      players.forEach(player => {
+        if (player.inHand && !player.isAllIn) player.hasActed = false;
+      });
+      p.hasActed = true;
+      if (p.chips === 0) p.isAllIn = true;
+
+      advanceTurn();
+      saveGameState();
+    }
+
+    function advanceTurn() {
+      if (isBettingRoundComplete()) {
+        triggerStageTransition();
+      } else {
+        currentTurnIdx = (currentTurnIdx + 1) % players.length;
+        skipInactivePlayers();
+        renderUI();
+      }
+    }
+
+    function isBettingRoundComplete() {
+      const active = players.filter(p => p.inHand && !p.isAllIn && p.isActive);
+      if (active.length === 0) return true;
+      return active.every(p => p.hasActed && p.currentBet === currentBet);
+    }
+
+    function skipInactivePlayers() {
+      for (let i = 0; i < players.length; i++) {
+        const p = players[currentTurnIdx];
+        if (p.inHand && !p.isAllIn && p.isActive) break;
+        currentTurnIdx = (currentTurnIdx + 1) % players.length;
+      }
+    }
+
+    function checkHandStatus() {
+      const active = players.filter(p => p.inHand);
+      if (active.length === 1) {
+        const winner = active[0];
+        winner.chips += pot;
+        announceWinner(`${winner.name} Wins!`, `<p class="font-bold text-amber-400 text-lg">$${pot} Pot Awarded</p><p>Reason: All other players folded.</p>`);
+        saveGameState();
+        return true;
+      }
+      return false;
+    }
+
+    function triggerStageTransition() {
+      const stages = ["PREFLOP", "FLOP", "TURN", "RIVER"];
+      const currIdx = stages.indexOf(stage);
+
+      if (currIdx < stages.length - 1) {
+        pendingNextStage = stages[currIdx + 1];
+        isWaitingForCardReveal = true;
+
+        const prompts = {
+          "FLOP": { title: "DEAL FLOP CARDS", text: "DEALER: Burn 1 card face-down, then reveal 3 FLOP community cards face-up." },
+          "TURN": { title: "DEAL TURN CARD", text: "DEALER: Burn 1 card face-down, then reveal 1 TURN community card face-up (4th card)." },
+          "RIVER": { title: "DEAL RIVER CARD", text: "DEALER: Burn 1 card face-down, then reveal 1 RIVER community card face-up (5th card)." }
+        };
+
+        document.getElementById('card-reveal-stage-title').innerText = prompts[pendingNextStage].title;
+        document.getElementById('card-reveal-instruction').innerText = prompts[pendingNextStage].text;
+
+        renderUI();
+        saveGameState();
+        openModal('modal-card-reveal');
+      } else {
+        stage = "HAND OVER";
+        renderUI();
+        saveGameState();
+        openShowdownModal();
+      }
+    }
+
+    function confirmCommunityCardsRevealed() {
+      closeModal('modal-card-reveal');
+      stage = pendingNextStage;
+      pendingNextStage = null;
+      isWaitingForCardReveal = false;
+
+      players.forEach(p => {
+        p.currentBet = 0;
+        p.hasActed = false;
+      });
+      currentBet = 0;
+
+      currentTurnIdx = (dealerIdx + 1) % players.length;
+      skipInactivePlayers();
+      renderUI();
+      saveGameState();
+    }
+
+    function openShowdownModal() {
+      document.getElementById('showdown-pot-amount').innerText = `$${pot}`;
+      const listContainer = document.getElementById('showdown-players-list');
+      listContainer.innerHTML = '';
+
+      const activePlayers = players.filter(p => p.inHand);
+      activePlayers.forEach((p) => {
+        listContainer.innerHTML += `
+          <label class="flex items-center justify-between p-2.5 bg-gray-950 border border-gray-800 rounded-xl cursor-pointer hover:border-gray-700">
+            <div class="flex items-center gap-2">
+              <input type="checkbox" value="${players.indexOf(p)}" class="showdown-winner-checkbox rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-0" onchange="updateSplitInfo()">
+              <span class="text-xs font-bold text-gray-200">${p.name}</span>
+            </div>
+            <span class="text-xs text-gray-400">Stack: $${p.chips}</span>
+          </label>
+        `;
+      });
+
+      updateSplitInfo();
+      openModal('modal-showdown');
+    }
+
+    function updateSplitInfo() {
+      const checkedBoxes = document.querySelectorAll('.showdown-winner-checkbox:checked');
+      const count = checkedBoxes.length;
+      const infoBox = document.getElementById('showdown-split-info');
+
+      if (count > 0) {
+        const share = Math.floor(pot / count);
+        const rem = pot % count;
+        infoBox.innerText = `Selected: ${count} winner(s) | Share: $${share} each${rem > 0 ? ` (+ $${rem} odd chip)` : ''}`;
+      } else {
+        infoBox.innerText = `Selected: 0 players | Share: $0 each`;
+      }
+    }
+
+    function awardPot() {
+      const checkedBoxes = document.querySelectorAll('.showdown-winner-checkbox:checked');
+      if (checkedBoxes.length === 0) {
+        alert("Please select at least one winner.");
+        return;
+      }
+
+      const winnerIndices = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+      const winners = winnerIndices.map(idx => players[idx]);
+
+      const share = Math.floor(pot / winners.length);
+      const remainder = pot % winners.length;
+
+      winners.forEach(w => w.chips += share);
+      if (remainder > 0) winners[0].chips += remainder;
+
+      closeModal('modal-showdown');
+
+      if (winners.length === 1) {
+        announceWinner(`${winners[0].name} Wins!`, `<p class="font-bold text-amber-400 text-lg">$${pot} Pot Awarded</p><p>Total Stack: $${winners[0].chips}</p>`);
+      } else {
+        const names = winners.map(w => w.name).join(', ');
+        announceWinner(`Split Pot (${winners.length} Winners)`, `<p class="font-bold text-amber-400 text-lg">Total Pot: $${pot}</p><p class="text-gray-300 font-semibold">${names}</p><p>Awarded $${share} each${remainder ? ` (+ $${remainder} odd chip to${winners[0].name})` : ''}.</p>`);
+      }
+      saveGameState();
+    }
+
+    function announceWinner(title, htmlDetails) {
+      document.getElementById('winner-title').innerText = title;
+      document.getElementById('winner-details-box').innerHTML = htmlDetails;
+      openModal('modal-winner-announcement');
+    }
+
+    function promptNextHandOrEnd() {
+      openModal('modal-hand-permission');
+    }
+
+    function showFinalCashoutSummary() {
+      document.getElementById('summary-timestamp').innerText = new Date().toLocaleString();
+      const tbody = document.getElementById('final-summary-table-body');
+      tbody.innerHTML = '';
+
+      let allRecords = [...players.map(p => ({
+        name: p.name,
+        buyin: p.totalBuyin,
+        chips: p.chips,
+        net: p.netProfit
+      }))];
+
+      historyLedger.forEach(h => {
+        allRecords.push({
+          name: `${h.name} (Cashed Out)`,
+          buyin: h.buyin,
+          chips: h.cashout,
+          net: h.net
+        });
+      });
+
+      allRecords.forEach(r => {
+        tbody.innerHTML += `
+          <tr>
+            <td class="p-3 font-bold border-b border-gray-800">${r.name}</td>
+            <td class="p-3 border-b border-gray-800">$${r.buyin}</td>
+            <td class="p-3 border-b border-gray-800 font-semibold text-amber-400">$${r.chips}</td>
+            <td class="p-3 border-b border-gray-800 font-bold ${r.net >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+              ${r.net >= 0 ? '+' : ''}${r.net}$
+            </td>
+          </tr>
+        `;
+      });
+
+      openModal('modal-final-summary');
+    }
+
+    function discontinuePot() {
+      if (pot === 0) {
+        alert("The pot is currently empty.");
+        return;
+      }
+      if (confirm("Discontinue current hand and refund all bets to players?")) {
+        players.forEach(p => {
+          if (p.currentBet > 0) {
+            p.chips += p.currentBet;
+            p.currentBet = 0;
+          }
+        });
+        pot = 0;
+        alert("Hand discontinued. Bets refunded.");
+        startNewHand();
+      }
+    }
+
+    // UTILITIES
+    function openRebuyModal() {
+      const select = document.getElementById('rebuy-player-select');
+      select.innerHTML = players.map(p => `<option value="${p.name}">${p.name} ($${p.chips})</option>`).join('');
+      openModal('modal-rebuy');
+    }
+
+    function submitRebuy() {
+      const name = document.getElementById('rebuy-player-select').value;
+      const amount = parseInt(document.getElementById('rebuy-amount-input').value);
+      const player = players.find(p => p.name === name);
+      if (player && !isNaN(amount)) {
+        player.chips += amount;
+        player.totalBuyin += amount;
+        closeModal('modal-rebuy');
+        renderUI();
+        saveGameState();
+      }
+    }
+
+    function openAddPlayerModal() {
+      document.getElementById('add-player-name').value = `Player ${players.length + 1}`;
+      openModal('modal-add-player');
+    }
+
+    function submitAddPlayer() {
+      const name = document.getElementById('add-player-name').value.trim();
+      const buyin = parseInt(document.getElementById('add-player-buyin').value);
+
+      if (!name || isNaN(buyin)) return;
+      if (players.some(p => p.name === name)) {
+        alert("Player name already exists.");
+        return;
+      }
+
+      const newP = new Player(name, buyin);
+      newP.inHand = false;
+      players.push(newP);
+      closeModal('modal-add-player');
+      renderUI();
+      saveGameState();
+    }
+
+    function openRemovePlayerModal() {
+      const select = document.getElementById('remove-player-select');
+      select.innerHTML = players.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+      openModal('modal-remove-player');
+    }
+
+    function submitRemovePlayer() {
+      const name = document.getElementById('remove-player-select').value;
+      const idx = players.findIndex(p => p.name === name);
+
+      if (idx !== -1) {
+        const leavingPlayer = players[idx];
+        logPlayerExit(leavingPlayer, "Voluntary Cashout");
+
+        if (idx < dealerIdx) dealerIdx--;
+        else if (idx === dealerIdx) dealerIdx = dealerIdx % (players.length - 1);
+
+        players.splice(idx, 1);
+        closeModal('modal-remove-player');
+
+        if (!checkHandStatus()) renderUI();
+        saveGameState();
+      }
+    }
+
+    function togglePlayerActivity(idx) {
+      const p = players[idx];
+      p.isActive = !p.isActive;
+      if (p.isActive) p.inactiveHandsCount = 0;
+      renderUI();
+      saveGameState();
+    }
+
+    function logPlayerExit(player, reason) {
+      historyLedger.push({
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        name: player.name,
+        buyin: player.totalBuyin,
+        cashout: player.chips,
+        net: player.netProfit,
+        reason: reason
+      });
+    }
+
+    function openHistoryModal() {
+      const tbody = document.getElementById('history-table-body');
+      tbody.innerHTML = historyLedger.map(h => `
+        <tr>
+          <td class="p-2.5">${h.time}</td>
+          <td class="p-2.5 font-bold">${h.name}</td>
+          <td class="p-2.5">$${h.buyin}</td>
+          <td class="p-2.5">$${h.cashout}</td>
+          <td class="p-2.5 font-bold ${h.net >= 0 ? 'text-emerald-400' : 'text-red-400'}">${h.net >= 0 ? '+' : ''}${h.net}$</td>
+          <td class="p-2.5 text-gray-400">${h.reason}</td>
+        </tr>
+      `).join('');
+      openModal('modal-history');
+    }
+
+    // UI RENDER
+    function renderUI() {
+      document.getElementById('stat-stage').innerText = isWaitingForCardReveal ? `REVEAL ${pendingNextStage}` : stage;
+      document.getElementById('stat-pot').innerText = `$${pot}`;
+      document.getElementById('stat-current-bet').innerText = `$${currentBet}`;
+      document.getElementById('table-pot-display').innerText = `$${pot}`;
+      document.getElementById('table-stage-display').innerText = stage;
+
+      const sbName = players[(dealerIdx + 1) % players.length]?.name || 'N/A';
+      const bbName = players[(dealerIdx + 2) % players.length]?.name || 'N/A';
+      document.getElementById('stat-dealer').innerText = players[dealerIdx]?.name || 'N/A';
+      document.getElementById('stat-blinds').innerText = `${sbName} / ${bbName}`;
+
+      const instructions = {
+        "PREFLOP": "DEALER: Deal 2 hole cards to each player face-down.",
+        "FLOP": "FLOP ACTIVE: 3 Community cards revealed.",
+        "TURN": "TURN ACTIVE: 4th Community card revealed.",
+        "RIVER": "RIVER ACTIVE: Final 5th Community card revealed.",
+        "HAND OVER": "HAND OVER: Betting complete! Settle pot."
+      };
+      
+      document.getElementById('dealer-instruction').innerText = isWaitingForCardReveal 
+        ? `DEALER: Reveal ${pendingNextStage} cards and click confirm in the pop-up!` 
+        : (instructions[stage] || "");
+
+      document.getElementById('active-players-count').innerText = `Active Players: ${players.filter(p => p.isActive).length}`;
+
+      const currP = players[currentTurnIdx];
+      const isHandOver = stage === "HAND OVER" || isWaitingForCardReveal;
+      const callNeeded = currP ? currentBet - currP.currentBet : 0;
+
+      document.getElementById('turn-player-name').innerText = isWaitingForCardReveal ? "Waiting for Card Reveal..." : (isHandOver ? "Hand Completed" : (currP ? currP.name : "-"));
+      document.getElementById('btn-call-text').innerText = callNeeded === 0 ? "Check" : `Call $${callNeeded}`;
+      document.getElementById('raise-amount-input').value = currentBet + bigBlind;
+
+      document.getElementById('btn-fold').disabled = isHandOver;
+      document.getElementById('btn-call').disabled = isHandOver;
+      document.getElementById('btn-raise').disabled = isHandOver;
+
+      renderTableSeats();
+      renderPlayerLedgerCards();
+    }
+
+    function renderTableSeats() {
+      const container = document.getElementById('seats-container');
+      container.innerHTML = '';
+      const total = players.length;
+
+      players.forEach((p, idx) => {
+        const angle = (2 * Math.PI / total) * idx - (Math.PI / 2);
+        const rx = 42; 
+        const ry = 38;
+        const left = 50 + rx * Math.cos(angle);
+        const top = 50 + ry * Math.sin(angle);
+
+        const isTurn = (idx === currentTurnIdx && p.inHand && !p.isAllIn && stage !== "HAND OVER" && !isWaitingForCardReveal);
+        const isDealer = (idx === dealerIdx);
+
+        let borderStyle = "border-gray-700 bg-gray-900/90";
+        if (!p.isActive) borderStyle = "border-red-600/50 bg-red-950/80";
+        else if (!p.inHand) borderStyle = "border-gray-800 bg-gray-950/60 opacity-60";
+        else if (isTurn) borderStyle = "border-amber-400 bg-amber-950/80 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400";
+
+        container.innerHTML += `
+          <div class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto" style="left: ${left}%; top: ${top}%;">
+            <div class="px-3 py-1.5 rounded-xl border ${borderStyle} backdrop-blur text-center min-w-[90px]">
+              <div class="text-[11px] font-bold text-gray-100 flex items-center justify-center gap-1">
+                ${isDealer ? '<span class="w-3.5 h-3.5 bg-white text-black rounded-full text-[9px] font-black inline-flex items-center justify-center">D</span>' : ''}
+                ${p.name}
+              </div>
+              <div class="text-[10px] font-semibold text-emerald-400">$${p.chips}</div>
+            </div>
+            ${p.currentBet > 0 && p.inHand ? `<div class="mt-1 px-2 py-0.5 bg-amber-500 text-gray-950 font-black text-[9px] rounded-full shadow-md border border-white/40">$${p.currentBet}</div>` : ''}
+          </div>
+        `;
+      });
+    }
+
+    function renderPlayerLedgerCards() {
+      const grid = document.getElementById('players-card-grid');
+      grid.innerHTML = '';
+
+      players.forEach((p, idx) => {
+        const isTurn = (idx === currentTurnIdx && p.inHand && !p.isAllIn && stage !== "HAND OVER" && !isWaitingForCardReveal);
+        
+        let cardBg = "bg-gray-950/60 border-gray-800";
+        let statusBadge = `<span class="px-2 py-0.5 bg-gray-800 text-gray-400 text-[10px] font-semibold rounded-full">Active</span>`;
+
+        if (!p.isActive) {
+          cardBg = "bg-red-950/20 border-red-900/40";
+          statusBadge = `<span class="px-2 py-0.5 bg-red-900/40 text-red-400 text-[10px] font-semibold rounded-full">Inactive (${p.inactiveHandsCount}/3)</span>`;
+        } else if (!p.inHand) {
+          cardBg = "bg-gray-950/30 border-gray-800/40 opacity-50";
+          statusBadge = `<span class="px-2 py-0.5 bg-red-900/30 text-red-400 text-[10px] font-semibold rounded-full">Folded</span>`;
+        } else if (p.isAllIn) {
+          statusBadge = `<span class="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-semibold rounded-full">ALL-IN</span>`;
+        } else if (isTurn) {
+          cardBg = "bg-amber-950/20 border-amber-500/50";
+          statusBadge = `<span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold rounded-full">Your Turn</span>`;
+        }
+
+        grid.innerHTML += `
+          <div class="p-3 rounded-xl border ${cardBg} flex flex-col justify-between gap-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sm text-gray-200">${p.name} ${idx === dealerIdx ? '(D)' : ''}</span>
+              ${statusBadge}
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div><span class="text-gray-500 block">Stack</span> <span class="font-bold text-gray-200">$${p.chips}</span></div>
+              <div><span class="text-gray-500 block">Hand Bet</span> <span class="font-bold text-amber-400">$${p.currentBet}</span></div>
+            </div>
+            <div class="flex items-center justify-between pt-2 border-t border-gray-800/60 text-xs">
+              <span class="font-bold ${p.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}">Net: ${p.netProfit >= 0 ? '+' : ''}${p.netProfit}$</span>
+              <button onclick="togglePlayerActivity(${idx})" class="text-[10px] text-gray-400 hover:text-white underline">
+                ${p.isActive ? 'Set Inactive' : 'Activate'}
+              </button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+  </script>
+</body>
+</html>
